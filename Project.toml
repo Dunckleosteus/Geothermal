@@ -1,0 +1,14 @@
+name = "heat"
+uuid = "a8de6a4b-7f4e-4ed4-be99-6046baf32c29"
+authors = ["throgg <ghus266@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+
+[compat]
+GLMakie = "0.11.5"
+Pluto = "0.20.8"
+PlutoUI = "0.7.23"
