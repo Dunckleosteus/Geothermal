@@ -21,7 +21,7 @@ begin
 	using Pkg; 
 	Pkg.activate(".");
 	Pkg.status();
-	using GLMakie, PlutoUI, LinearAlgebra
+	using GLMakie, PlutoUI, LinearAlgebra, Statistics
 end
 
 # ╔═╡ 582b7363-eb51-4a3c-a4e4-1b0622f57132
@@ -186,7 +186,7 @@ end
 begin 
 	start_temperature = 120     # temperature underground
 	water_temperature = 90
-	nx, ny, nt = 100, 100, 500 	# array size
+	nx, ny, nt = 100, 100, 1000 	# array size
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
 	α = 1.5e-7# thermal diffusivity
@@ -222,12 +222,32 @@ begin
 	fig
 end
 
+# ╔═╡ ad140132-4da3-46a2-bdb4-88661bf0e1b8
+global function ToMonths(tempus, dt)
+	return round((tempus * dt) * 0.00000038026486; digits=2)
+end
+
+# ╔═╡ aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
+md"""
+# Change in system
+"""
+
+# ╔═╡ 7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
+begin
+	temperaturae = [mean(u[:, :, i]) for i in 1:size(u)[end]]
+	times = [ToMonths(i, dt) for i in 1:size(u)[end]]
+	lines(times, temperaturae)
+end
+
 # ╔═╡ Cell order:
 # ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
 # ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
 # ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 # ╟─da05c62f-f69f-4b03-965e-74dc2293cf8c
 # ╟─0281916d-03bf-4302-b616-741c70d02061
-# ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-# ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
 # ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
+# ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
+# ╠═3679bcb7-0544-4a19-bb33-4d2f68390149
+# ╠═ad140132-4da3-46a2-bdb4-88661bf0e1b8
+# ╟─aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
+# ╠═7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
