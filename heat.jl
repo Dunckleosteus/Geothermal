@@ -59,10 +59,14 @@ u[x, y, t+dt]= α * dt * (
 ```
 """
 
-# ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-@bind tempus PlutoUI.Slider(1:1:100)
-
 # ╔═╡ 73d1885c-30e5-4399-a03a-fd9ef66be088
+"""
+# sdEllipse
+Signed distance function to create an ellipse
+# Inputs
+- p -> point with x, y coordinates
+- ab -> list of 2 itemps containing minor and major axis of the ellipse
+"""
 global function sdEllipse(p::Vector{A}, ab::Vector{T}) where {T <: Real, A <: Real}
     p = abs.(p)
     if p[1] > p[2]
@@ -105,6 +109,19 @@ end
 
 
 # ╔═╡ da05c62f-f69f-4b03-965e-74dc2293cf8c
+"""
+# Bubble 
+Given a 3D matrix (x, y, time), replace the values of cells under an ellipse to a given value over a list of times. 
+## Inputs 
+- Matrix : x, y and time array containing float values
+- center : tuple representing the x, y position of center
+- axis1  : axis 1 of ellipse
+- axis2  : axis 2 of ellipse
+- value  : the value to replace selected cells with
+- time   : Vector of times at which the value should be changed. If left empty will change all values. 
+## Returns
+Modified matrix with same dimensions as input matrix
+"""
 global function Bubble(
 		matrix::Array{Float64, 3}, 
 		center::Tuple{A, A}, 
@@ -113,7 +130,7 @@ global function Bubble(
 		value::C;
 		time::Union{Vector{T}, Nothing}=nothing
 	) where {T <: Real, A<:Integer, C<:Real}
-	time = isnothing(time) ? range(1,size(matrix)[end]) : time;
+	time = isnothing(time) ? range(1, size(matrix)[end]) : time;
 	for t ∈ time 
 		for i in 1:size(matrix)[1]
 		    for j in 1:size(matrix)[2]
@@ -126,25 +143,63 @@ global function Bubble(
 	return matrix
 end
 
+# ╔═╡ 0281916d-03bf-4302-b616-741c70d02061
+"""
+# Mask
+Given a 3D matrix (x, y, time), generate a filter array with same dimensions as input matrix where : 
+- False -> outside ellipse sdf
+- True  -> under ellipse sdf
+## Inputs 
+- Matrix : x, y and time array containing float values-
+- center : tuple representing the x, y position of center
+- axis1 : axis 1 of ellipse
+- axis2 : axis 2 of ellipse
+- value : the value to replace selected cells with
+- time : Vector of times at which the value should be changed. If left empty will change all values.
+## Outputs 
+- Boolean array of same dimension as input matrix.
+"""
+global function Mask(
+		matrix::Array{Float64, 3}, 
+		center::Tuple{A, A}, 
+		axis1::A, 
+		axis2::A,
+		value::C;
+		time::Union{Vector{T}, Nothing}=nothing
+	) where {T <: Real, A<:Integer, C<:Real}
+	result = Array{Bool, 3}(undef, size(matrix))
+	fill!(result, false)
+	time = isnothing(time) ? range(1,size(matrix)[end]) : time;
+	for t ∈ time 
+		for i in 1:size(matrix)[1]
+		    for j in 1:size(matrix)[2]
+			   	point = [i, j]
+			   	dist = sdEllipse(point .- center, [axis1, axis2])
+				result[i, j, t] = dist <= 0
+		    end
+		end
+	end
+	return result
+end
+
 # ╔═╡ dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 begin 
-	start_temperature = 100     # temperature underground
-	water_temperature = 10
-	nx, ny, nt = 100, 50, 100 	# array size
+	start_temperature = 120     # temperature underground
+	water_temperature = 90
+	nx, ny, nt = 100, 100, 500 	# array size
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
-	α = 0.1e-6# thermal diffusivity
-
-	# u[10:15, 10:15, :] .= water_temperature
+	α = 1.5e-7# thermal diffusivity
 	u = Bubble(u, (50, 30), 10, 3, water_temperature)
-	
+	mask::Array{Bool, 3} = Mask(u, (50, 30), 10, 3, water_temperature)
+	dt = 1e6
 	for coord in CartesianIndices(size(u))
 		x = coord[1]
 		y = coord[2]
 		t = coord[3]
-		dt = 2e6
+		
 		if t < size(u)[end]
-			u[x, y, t+1]= α * dt * (
+			u[x, y, t+1] = mask[x, y, t] ? water_temperature : α * dt * (
 				u[x<nx ? x+1 : x, y, t]-2*u[x, y, t]+u[x==1 ? x : x-1, y, t]+
 				u[x, y<ny ? y+1 : y, t]-2*u[x, y, t]+u[x, y==1 ? y : y-1, t]
 			) + u[x, y, t]
@@ -152,22 +207,27 @@ begin
 	end
 end
 
+# ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
+@bind tempus PlutoUI.Slider(1:1:size(u)[end])
+
 # ╔═╡ 3679bcb7-0544-4a19-bb33-4d2f68390149
 begin
-	fig, ax, hm = heatmap(u[:, :, tempus], colorrange=(0, 100))
-	Colorbar(fig[:, end+1], colorrange=(0, 100))
+	# plotting
+	c_range = (water_temperature, start_temperature) # color range
+	
+	fig, ax, hm = heatmap(u[:, :, tempus], colorrange=c_range)
+	Colorbar(fig[:, end+1], colorrange=c_range)
+	tempus_meus = round((tempus * dt) * 0.00000038026486; digits=2)
+	print("t = $tempus_meus months")
 	fig
 end
-
-# ╔═╡ 930ca8ca-43bf-4105-92b9-4e905cffabb7
-u[:, :, tempus]
 
 # ╔═╡ Cell order:
 # ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
 # ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
 # ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
-# ╠═da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╟─da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╟─0281916d-03bf-4302-b616-741c70d02061
 # ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-# ╠═3679bcb7-0544-4a19-bb33-4d2f68390149
-# ╠═930ca8ca-43bf-4105-92b9-4e905cffabb7
-# ╠═73d1885c-30e5-4399-a03a-fd9ef66be088
+# ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
+# ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
