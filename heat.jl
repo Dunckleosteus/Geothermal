@@ -21,7 +21,7 @@ begin
 	using Pkg; 
 	Pkg.activate(".");
 	Pkg.status();
-	using GLMakie, PlutoUI
+	using GLMakie, PlutoUI, LinearAlgebra
 end
 
 # ╔═╡ 582b7363-eb51-4a3c-a4e4-1b0622f57132
@@ -59,40 +59,105 @@ u[x, y, t+dt]= α * dt * (
 ```
 """
 
-# ╔═╡ ff05d6e5-e0d8-4231-a186-a43d5c142988
-begin 
+# ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
+@bind tempus PlutoUI.Slider(1:1:100)
 
+# ╔═╡ 73d1885c-30e5-4399-a03a-fd9ef66be088
+global function sdEllipse(p::Vector{A}, ab::Vector{T}) where {T <: Real, A <: Real}
+    p = abs.(p)
+    if p[1] > p[2]
+        p = reverse(p)
+        ab = reverse(ab)
+    end
+
+    l = ab[2]^2 - ab[1]^2
+    m = ab[1] * p[1] / l
+    m2 = m^2
+    n = ab[2] * p[2] / l
+    n2 = n^2
+    c = (m2 + n2 - 1.0) / 3.0
+    c3 = c^3
+    q = c3 + m2 * n2 * 2.0
+    d = c3 + m2 * n2
+    g = m + m * n2
+    co = 0.0
+
+    if d < 0.0
+        h = acos(q / c3) / 3.0
+        s = cos(h)
+        t = sin(h) * sqrt(3.0)
+        rx = sqrt(-c * (s + t + 2.0) + m2)
+        ry = sqrt(-c * (s - t + 2.0) + m2)
+        co = (ry + sign(l) * rx + abs(g) / (rx * ry) - m) / 2.0
+    else
+        h = 2.0 * m * n * sqrt(d)
+        s = sign(q + h) * abs(q + h)^(1.0 / 3.0)
+        u = sign(q - h) * abs(q - h)^(1.0 / 3.0)
+        rx = -s - u - c * 4.0 + 2.0 * m2
+        ry = (s - u) * sqrt(3.0)
+        rm = sqrt(rx^2 + ry^2)
+        co = (ry / sqrt(rm - rx) + 2.0 * g / rm - m) / 2.0
+    end
+
+    r = ab .* [co, sqrt(1.0 - co^2)]
+    return norm(r - p) * sign(p[2] - r[2])
+end
+
+
+# ╔═╡ da05c62f-f69f-4b03-965e-74dc2293cf8c
+global function Bubble(
+		matrix::Array{Float64, 3}, 
+		center::Tuple{A, A}, 
+		axis1::A, 
+		axis2::A,
+		value::C;
+		time::Union{Vector{T}, Nothing}=nothing
+	) where {T <: Real, A<:Integer, C<:Real}
+	time = isnothing(time) ? range(1,size(matrix)[end]) : time;
+	for t ∈ time 
+		for i in 1:size(matrix)[1]
+		    for j in 1:size(matrix)[2]
+			   	point = [i, j]
+			   	dist = sdEllipse(point .- center, [axis1, axis2])
+				matrix[i, j, t] = dist <= 0 ? value : matrix[i, j, t]
+		    end
+		end
+	end
+	return matrix
 end
 
 # ╔═╡ dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 begin 
 	start_temperature = 100     # temperature underground
 	water_temperature = 10
-	nx, ny, nt = 100, 100, 100 	# array size
+	nx, ny, nt = 100, 50, 100 	# array size
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
-	α = 0.1 						# thermal diffusivity
+	α = 0.1e-6# thermal diffusivity
 
-	u[1:10, 1:10, begin:20] .= water_temperature
-
-	for x ∈ 1:nx
-		for y ∈ 1:ny
-			for t ∈ 1:(nt-1)
-				dt = 1
-				u[x, y, t+1]= α * dt * (
-					u[x<nx ? x+1 : x, y, t]-2*u[x, y, t]+u[x==1 ? x : x-1, y, t]+
-					u[x, y<ny ? y+1 : y, t]-2*u[x, y, t]+u[x, y==1 ? y : y-1, t]
-				) + u[x, y, t]
-			end
+	# u[10:15, 10:15, :] .= water_temperature
+	u = Bubble(u, (50, 30), 10, 3, water_temperature)
+	
+	for coord in CartesianIndices(size(u))
+		x = coord[1]
+		y = coord[2]
+		t = coord[3]
+		dt = 2e6
+		if t < size(u)[end]
+			u[x, y, t+1]= α * dt * (
+				u[x<nx ? x+1 : x, y, t]-2*u[x, y, t]+u[x==1 ? x : x-1, y, t]+
+				u[x, y<ny ? y+1 : y, t]-2*u[x, y, t]+u[x, y==1 ? y : y-1, t]
+			) + u[x, y, t]
 		end
 	end
 end
 
-# ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-@bind tempus PlutoUI.Slider(1:1:100)
-
 # ╔═╡ 3679bcb7-0544-4a19-bb33-4d2f68390149
-GLMakie.heatmap(u[:, :, tempus])
+begin
+	fig, ax, hm = heatmap(u[:, :, tempus], colorrange=(0, 100))
+	Colorbar(fig[:, end+1], colorrange=(0, 100))
+	fig
+end
 
 # ╔═╡ 930ca8ca-43bf-4105-92b9-4e905cffabb7
 u[:, :, tempus]
@@ -100,8 +165,9 @@ u[:, :, tempus]
 # ╔═╡ Cell order:
 # ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
 # ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
-# ╠═ff05d6e5-e0d8-4231-a186-a43d5c142988
 # ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
-# ╟─0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-# ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
+# ╠═da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
+# ╠═3679bcb7-0544-4a19-bb33-4d2f68390149
 # ╠═930ca8ca-43bf-4105-92b9-4e905cffabb7
+# ╠═73d1885c-30e5-4399-a03a-fd9ef66be088
