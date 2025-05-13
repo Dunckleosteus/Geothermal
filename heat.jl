@@ -248,15 +248,15 @@ md"""
 begin
 	f = Figure()
 	
-	ax1 = Axis(f[1, 1], yticklabelcolor = :blue, title = "Average temperature & derivative")
-	ax2 = Axis(f[1, 1], yticklabelcolor = :red, yaxisposition = :right)
+	ax1 = Axis(f[1, 1], yticklabelcolor = :blue, title = "Average temperature of system and it's derivative")
+	ax2 = Axis(f[1, 1], yticklabelcolor = :red, yaxisposition = :right, xlabel = "time in months")
 	hidespines!(ax2)
-	hidexdecorations!(ax2)
+	#hidexdecorations!(ax2)
 	
 	temperaturae = [mean(u[:, :, i]) for i in 1:size(u)[end]]
 	times = [ToMonths(i, dt) for i in 1:size(u)[end]]
 	temp_line = lines!(ax1, times, temperaturae, color = :blue)
-	deriv_line = lines!(ax2, times[begin:end-1], diff(temperaturae), color = :red)
+	deriv_line = lines!(ax2, times[begin:end-1], diff(temperaturae), color=:red)
 
 	axislegend(ax1, [[temp_line], [deriv_line]], ["temperature", "derivative"], framevisible = false, valign=:center)
 	
@@ -271,7 +271,7 @@ end
 # ╠═11ed96d4-047c-4886-94b6-51e24df24197
 # ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 # ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
-# ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
+# ╟─0b2c0b34-ae4a-46ca-9124-4e76c1bda032
 # ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
 # ╠═ad140132-4da3-46a2-bdb4-88661bf0e1b8
 # ╟─aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
