@@ -59,6 +59,15 @@ u[x, y, t+dt]= α * dt * (
 ```
 """
 
+# ╔═╡ 11ed96d4-047c-4886-94b6-51e24df24197
+md"""
+Start temperature: $(@bind start_temperature NumberField(0:200, default=120))
+
+Water injection temperature: $(@bind water_temperature_ NumberField(0:200, default=90))
+
+Time steps $(@bind nt NumberField(1:5000, default=600))
+"""
+
 # ╔═╡ 73d1885c-30e5-4399-a03a-fd9ef66be088
 """
 # sdEllipse
@@ -184,9 +193,10 @@ end
 
 # ╔═╡ dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 begin 
-	start_temperature = 120     # temperature underground
-	water_temperature = 90
-	nx, ny, nt = 100, 100, 1000 	# array size
+	# start_temperature = 120     # temperature underground
+	# water_temperature = 90
+	water_temperature = water_temperature_ == start_temperature ? start_temperature -1 : water_temperature_
+	nx, ny = 100, 100	# array size
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
 	α = 1.5e-7# thermal diffusivity
@@ -208,7 +218,9 @@ begin
 end
 
 # ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-@bind tempus PlutoUI.Slider(1:1:size(u)[end])
+md"""
+Iteration : $(@bind tempus PlutoUI.Slider(1:1:size(u)[end]))
+"""
 
 # ╔═╡ 3679bcb7-0544-4a19-bb33-4d2f68390149
 begin
@@ -234,20 +246,33 @@ md"""
 
 # ╔═╡ 7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
 begin
+	f = Figure()
+	
+	ax1 = Axis(f[1, 1], yticklabelcolor = :blue, title = "Average temperature & derivative")
+	ax2 = Axis(f[1, 1], yticklabelcolor = :red, yaxisposition = :right)
+	hidespines!(ax2)
+	hidexdecorations!(ax2)
+	
 	temperaturae = [mean(u[:, :, i]) for i in 1:size(u)[end]]
 	times = [ToMonths(i, dt) for i in 1:size(u)[end]]
-	lines(times, temperaturae)
+	temp_line = lines!(ax1, times, temperaturae, color = :blue)
+	deriv_line = lines!(ax2, times[begin:end-1], diff(temperaturae), color = :red)
+
+	axislegend(ax1, [[temp_line], [deriv_line]], ["temperature", "derivative"], framevisible = false, valign=:center)
+	
+	f
 end
 
 # ╔═╡ Cell order:
 # ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
-# ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
-# ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 # ╟─da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
 # ╟─0281916d-03bf-4302-b616-741c70d02061
+# ╠═11ed96d4-047c-4886-94b6-51e24df24197
+# ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 # ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
 # ╠═0b2c0b34-ae4a-46ca-9124-4e76c1bda032
-# ╠═3679bcb7-0544-4a19-bb33-4d2f68390149
+# ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
 # ╠═ad140132-4da3-46a2-bdb4-88661bf0e1b8
 # ╟─aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
 # ╠═7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
