@@ -63,6 +63,8 @@ u[x, y, t+dt]= α * dt * (
 md"""
 Start temperature: $(@bind start_temperature NumberField(0:200, default=120))
 
+Constant temperature boundaries $(@bind constant_boundaries CheckBox(default=true))
+
 Water injection temperature: $(@bind water_temperature_ NumberField(0:200, default=90))
 
 Time steps $(@bind nt NumberField(1:5000, default=600))
@@ -177,7 +179,8 @@ global function Mask(
 		axis1::A, 
 		axis2::A,
 		value::C;
-		time::Union{Vector{T}, Nothing}=nothing
+		time::Union{Vector{T}, Nothing}=nothing,
+		bounds::Bool=true
 	) where {T <: Real, A<:Integer, C<:Real}
 	result = Array{Bool, 3}(undef, size(matrix))
 	fill!(result, false)
@@ -196,34 +199,44 @@ end
 
 # ╔═╡ dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 begin 
-	# start_temperature = 120     # temperature underground
-	# water_temperature = 90
 	water_temperature = water_temperature_ == start_temperature ? start_temperature -1 : water_temperature_
-	nx, ny = 100, 100	# array size
+
+	bubble_width=5
+	bubble_height=3
+	
+	nx, ny = 30, 15	# array size
+	bubble_center=(nx÷2, ny÷2)
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
 	α = 1.5e-7# thermal diffusivity
 	time_list = collect(time_list_)
-	u = Bubble(u, (50, 30), 10, 3, water_temperature; time=time_list)
-	mask::Array{Bool, 3} = Mask(u, (50, 30), 10, 3, water_temperature; time=time_list)
-	dt = 1e6
+	u = Bubble(u, (nx÷2, ny÷2), bubble_width, bubble_height, water_temperature; time=time_list)
+	mask::Array{Bool, 3} = Mask(u, (nx÷2, ny÷2), bubble_width, bubble_height, water_temperature; time=time_list)
+	dt = 5e7 # 6
+	dx = 10
+	dy = 10
 	for coord in CartesianIndices(size(u))
 		x = coord[1]
 		y = coord[2]
 		t = coord[3]
 		
+		u[[1, end], :, t] .= start_temperature # constant temperature bounds
+		u[:, [1, end], t] .= start_temperature
+
+			
 		if t < size(u)[end]
 			u[x, y, t+1] = mask[x, y, t] ? water_temperature : α * dt * (
-				u[x<nx ? x+1 : x, y, t]-2*u[x, y, t]+u[x==1 ? x : x-1, y, t]+
-				u[x, y<ny ? y+1 : y, t]-2*u[x, y, t]+u[x, y==1 ? y : y-1, t]
+				(u[x<nx ? x+1 : x, y, t]-2*u[x, y, t]+u[x==1 ? x : x-1, y, t])/dx^2+
+				(u[x, y<ny ? y+1 : y, t]-2*u[x, y, t]+u[x, y==1 ? y : y-1, t])/dy^2
 			) + u[x, y, t]
+			
 		end
 	end
 end
 
 # ╔═╡ 0b2c0b34-ae4a-46ca-9124-4e76c1bda032
 md"""
-Iteration : $(@bind tempus PlutoUI.Slider(1:1:size(u)[end]))
+Iteration : $(@bind tempus PlutoUI.Slider(1:1:size(u)[end], show_value=true))
 """
 
 # ╔═╡ 3679bcb7-0544-4a19-bb33-4d2f68390149
@@ -242,11 +255,6 @@ end
 global function ToMonths(tempus, dt)
 	return round((tempus * dt) * 0.00000038026486; digits=2)
 end
-
-# ╔═╡ aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
-md"""
-# Change in system
-"""
 
 # ╔═╡ 7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
 begin
@@ -267,9 +275,14 @@ begin
 	f
 end
 
+# ╔═╡ aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
+md"""
+# Change in system
+"""
+
 # ╔═╡ Cell order:
-# ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
-# ╠═da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╟─9205d372-2a74-11f0-0eb7-f13c28ba9f81
+# ╟─da05c62f-f69f-4b03-965e-74dc2293cf8c
 # ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
 # ╟─0281916d-03bf-4302-b616-741c70d02061
 # ╟─11ed96d4-047c-4886-94b6-51e24df24197
@@ -278,6 +291,6 @@ end
 # ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
 # ╟─0b2c0b34-ae4a-46ca-9124-4e76c1bda032
 # ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
-# ╠═ad140132-4da3-46a2-bdb4-88661bf0e1b8
 # ╟─aeda06d7-4917-4bb8-8d7e-d4bbcaa707b3
-# ╠═7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
+# ╟─ad140132-4da3-46a2-bdb4-88661bf0e1b8
+# ╟─7f4caa81-4d6e-463b-a4e2-24bf4fb3f091
