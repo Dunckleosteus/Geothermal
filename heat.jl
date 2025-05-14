@@ -68,6 +68,9 @@ Water injection temperature: $(@bind water_temperature_ NumberField(0:200, defau
 Time steps $(@bind nt NumberField(1:5000, default=600))
 """
 
+# ╔═╡ 9275a3c2-2583-4eff-8937-4a99df419a6f
+@bind time_list_ PlutoUI.RangeSlider(1:1:nt, show_value=true)
+
 # ╔═╡ 73d1885c-30e5-4399-a03a-fd9ef66be088
 """
 # sdEllipse
@@ -200,8 +203,9 @@ begin
 	u = zeros(nx, ny, nt)       # create array
 	u .= start_temperature      # set all values to initial temperature
 	α = 1.5e-7# thermal diffusivity
-	u = Bubble(u, (50, 30), 10, 3, water_temperature)
-	mask::Array{Bool, 3} = Mask(u, (50, 30), 10, 3, water_temperature)
+	time_list = collect(time_list_)
+	u = Bubble(u, (50, 30), 10, 3, water_temperature; time=time_list)
+	mask::Array{Bool, 3} = Mask(u, (50, 30), 10, 3, water_temperature; time=time_list)
 	dt = 1e6
 	for coord in CartesianIndices(size(u))
 		x = coord[1]
@@ -265,11 +269,12 @@ end
 
 # ╔═╡ Cell order:
 # ╠═9205d372-2a74-11f0-0eb7-f13c28ba9f81
-# ╟─da05c62f-f69f-4b03-965e-74dc2293cf8c
+# ╠═da05c62f-f69f-4b03-965e-74dc2293cf8c
 # ╟─582b7363-eb51-4a3c-a4e4-1b0622f57132
 # ╟─0281916d-03bf-4302-b616-741c70d02061
-# ╠═11ed96d4-047c-4886-94b6-51e24df24197
-# ╠═dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
+# ╟─11ed96d4-047c-4886-94b6-51e24df24197
+# ╟─9275a3c2-2583-4eff-8937-4a99df419a6f
+# ╟─dbe15ec3-5e7d-4d3b-b61c-bad08c6d97eb
 # ╟─73d1885c-30e5-4399-a03a-fd9ef66be088
 # ╟─0b2c0b34-ae4a-46ca-9124-4e76c1bda032
 # ╟─3679bcb7-0544-4a19-bb33-4d2f68390149
