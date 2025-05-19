@@ -19,13 +19,15 @@ end
 # ╔═╡ 45e865ce-30a3-11f0-3998-6f69a1127874
 begin
 	using Pkg; Pkg.activate("."); Pkg.status()
-	using PlutoUI, GLMakie, Symbolics
+	using PlutoUI, GLMakie, Statistics
 end
 
 # ╔═╡ 47888aac-a650-4856-b1af-a811b4920a21
 md"""
 # Gassmann equation
 $$\frac{K_{sat}}{K_0-K_{sat}} = \frac{K_{dry}}{K_0-K_{dry}} + \frac{K_{fluid}}{(K_0-K_{fluid})*\phi}$$
+
+Which basically translates to : wet rock = dry rock + water
 
 Need to isolate Kdry
 """
@@ -46,7 +48,7 @@ end
 # ╔═╡ 19b56726-9994-4052-ac00-0cd662d2a279
 global function Vp(K, μ, ρ)
 	return sqrt(
-		(K+(3/3)*μ) / ρ
+		(K+(3/4)*μ) / ρ
 	)
 end
 
@@ -114,23 +116,25 @@ Whith gas or oil, the ksat value will be close to kdry ($(round(kdry; digits=2))
 
 # ╔═╡ 71775f1d-eb14-4420-b9d4-3b1a56eb6bd7
 begin 
-	# end
+	manual = 11.78
+	local kdry = isnothing(manual) ? kdry : manual # remplace calculated kdry
+		
 	K_fluid_new = K(ρ_new, vp_new, μ_new)
 	ksat_new 	= Ksat(kdry, K0, K_fluid_new, ϕ)
 	vp_new_ 		= Vp(ksat_new, μ_new, ρ_new)
 	vs_new 		= Vs(μ_new, ρ_new)
-	print("rho = $ρ_new\nvp = $vp_new\nμ = $μ_new\nkfluid = $K_fluid_new\nksat = $ksat_new\nvp = $vp_new\nvs = $vs_new")
+	print("rho = $ρ_new\nvp = $vp_new\nμ = $μ_new\nkfluid = $K_fluid_new\nksat = $ksat_new\nvp = $vp_new\nvs = $vs_new\nkdry = $kdry")
 end
 
 # ╔═╡ Cell order:
 # ╟─45e865ce-30a3-11f0-3998-6f69a1127874
 # ╟─47888aac-a650-4856-b1af-a811b4920a21
 # ╟─a22ae92b-78d2-4a98-afda-bea18c86b487
-# ╟─b8f81a7e-320b-46e7-8360-38fd3eed22c0
+# ╠═b8f81a7e-320b-46e7-8360-38fd3eed22c0
 # ╠═426ec1ee-20dd-4891-b20a-642ed9fc58ac
-# ╟─19b56726-9994-4052-ac00-0cd662d2a279
-# ╟─70ec516a-06c5-44dd-abca-030e48486a1d
-# ╟─9488cd80-477e-476d-857d-aa1cac4d1ec2
-# ╟─65f45fe5-8894-4de5-87cd-40333cc40e09
+# ╠═19b56726-9994-4052-ac00-0cd662d2a279
+# ╠═70ec516a-06c5-44dd-abca-030e48486a1d
+# ╠═9488cd80-477e-476d-857d-aa1cac4d1ec2
+# ╠═65f45fe5-8894-4de5-87cd-40333cc40e09
 # ╟─7621a087-0183-4d26-8c1d-224256622d1b
 # ╟─71775f1d-eb14-4420-b9d4-3b1a56eb6bd7
