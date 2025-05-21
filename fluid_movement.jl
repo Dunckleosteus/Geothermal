@@ -107,13 +107,13 @@ md"""
 ## Input parameters
 |Parameter|Value|
 |---|---|
-|Nx|$(@bind nx PlutoUI.Slider(10:200, default=31, show_value=true))|
-|Ny|$(@bind ny PlutoUI.Slider(10:200, default=31, show_value=true))|
-|Nt|$(@bind nt PlutoUI.Slider(10:5000, default=500, show_value=true))|
+|Nx|$(@bind nx PlutoUI.Slider(10:200, default=25, show_value=true))|
+|Ny|$(@bind ny PlutoUI.Slider(10:200, default=25, show_value=true))|
+|Nt|$(@bind nt PlutoUI.NumberField(10:100:5000, default=500))|
 |lx|$(@bind lx PlutoUI.Slider(10:10:1000, default=10.0, show_value=true))|
 |ly|$(@bind ly PlutoUI.Slider(10:10:200, default=10.0, show_value=true))|
-|$T_{res}$|$(@bind T_res_ PlutoUI.Slider(10:200, default=120, show_value=true))|
-|$T_{inj}$|$(@bind T_inj_ PlutoUI.Slider(10:200, default=90, show_value=true))|
+|$T_{res}$|$(@bind T_res PlutoUI.Slider(10:200, default=120, show_value=true))|
+|$T_{inj}$|$(@bind T_inj PlutoUI.Slider(10:200, default=90, show_value=true))|
 |Rayleigh|$(@bind Ra_ PlutoUI.NumberField(1:6, default=1e4))
 """
 
@@ -146,36 +146,47 @@ end
 # ╔═╡ 3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 md"""
 ## Permeability
-Rayleigh number can be linked to permeability with Raleigh-Darcy number ([source](https://web.mit.edu/1.63/www/Lec-notes/chap6_porous/6-6Lapwood.pdf)) : 
-
-$$Ra = \frac{\rho \beta \Delta T klg}{n\alpha}$$
-With : 
-- k the permeability of the porous medium ✓
-- ρ density of the fluid ✓
-- ΔT difference in temperature between T₀ and T₀+ΔT ≈ Tres-Tinj ✓
-- β expansion coefficient ✓
-- l characteristic length ≈ height of reservoir in meters ✓
-- ν kinematic viscosity ✓
-- α thermal diffusivity ✓
+Variations in permeability are modelled by simply applying a modifier to the x and y velocity using a permeability map as a reference.
 
 """
 
+# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
+@bind taa PlutoUI.Slider(1:nt, show_value=true)
+
+# ╔═╡ 6f2fa035-c06f-409c-a43e-238b782aac3f
+begin
+	global function Variogram(nx::Int, ny::Int, range=35.)
+		table = (; z=[1.,0.,1.]) # table containing values to fit
+		coord = [
+			(nx/4, ny/4), 
+			(nx/2, 0.75*ny), 
+			(0.75*nx, ny/2)
+		] # coordinate of table values
+		geotable = georef(table, coord) # georeferencing values
+		grid = CartesianGrid(100, 100)
+		model = Kriging(GaussianVariogram(range=35.))
+		interp = geotable |> Interpolate(grid, model=model)
+		print(length(interp.z))
+		return reshape(interp.z, (100, 100))
+	end
+
+	heatmap(Variogram(100, 100))
+end
+
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 begin
-	T_inj = T_inj_ + 273
-	T_res = T_res_ + 273
 	dx = lx / (nx - 1)
 	dy = ly / (ny - 1)
 		
-	dt = 0.1 # Time step size
-	Pr = 7.01  # Prandtl number (for water)
-	Ra = 1e4 # Rayleigh number (controls convection strength)
+	dt = 0.0001 # Time step size
+	Pr = 7.01  # Prandtl number (for water) # 7.01
+	Ra = 1e5 # Rayleigh number (controls convection strength)
 		
 	g = 9.81 # Acceleration due to gravity
-	β = 0.75e-3  # Thermal expansion coefficient (water @ 100°C)
-	# TODO: change to not use Ra
-	ν_water = 2.938e-7
+	β = 1 # Thermal expansion coefficient (water @ 100°C)
+	ν_water = 2.938e-7 # Water dynamic viscosity
 	ν = sqrt(g * β * abs(T_res - T_inj) * ny^3 / Ra) / sqrt(Ra * Pr)
+	# ν = ν_water
 	α = ν_water / Pr 		# Thermal diffusivity ~ 0.02 
 	
 	ρ_water = 1000 	# kg.m³
@@ -193,14 +204,16 @@ begin
 	fill!(p, 0.0)
 	ΔT = abs(T_inj-T_res)
 	# Initial conditions
-	x_offset, y_offset = 10, 2
-	T[(nx÷2)-x_offset:(nx÷2)+x_offset, (ny÷2)-y_offset:(ny÷4)+y_offset, :] .= T_inj
-	
+	x_offset, y_offset = 2, 1
+	T[(nx÷2)-x_offset:(nx÷2)+x_offset, ny:(ny-(2*y_offset)), :] .= T_inj
+
+	# permeability values 
+	perm = Variogram(nx, ny)
 	for t in 1:(nt - 1) # time step 
 		for coords ∈ CartesianIndices((2:(nx - 1), 2:(ny - 1)))
 			i = coords[1]
 			j = coords[2]
-			
+			kᵢⱼ = perm[i, j]
 			# Ra_Da = DarcyRayleigh(ρ_water, β, ΔT, k, ly, ν, α)
 			# α = alpha(β, ΔT, Ra_Da, Pr, g)
 	    	# Spatial derivatives (central differences)
@@ -220,14 +233,14 @@ begin
 	        d2T_dy2 = (T[i, j+1, t] - 2 * T[i, j, t] + T[i, j-1, t]) / dy^2
 	
 	        # Momentum equations (x and y) with Boussinesq approximation
-	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*0.01
-	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*0.02
+	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kᵢⱼ
+	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kᵢⱼ
 	        dT_dt = -(uc[i,j,t]*dT_dx+vc[i,j,t]*dT_dy)+α*(d2T_dx2+d2T_dy2)
 	
 	        # Update values
 	        uc[i, j, t+1] = uc[i, j, t] + dt * duc_dt
 	        vc[i, j, t+1] = vc[i, j, t] + dt * dvc_dt
-	        T[i, j, t+1] = T[i, j, t] + dt * dT_dt
+	        T[i, j, t+1]  = T[i, j, t] + dt * dT_dt
 	    	# end
 	    end
 	
@@ -244,7 +257,9 @@ begin
 		vc[nx, :, t+1] .= 0.0
 		# Temperature boundary conditions
 		# T[15:20, 15:20, t+1] .= T_inj
-		T[(nx÷2)-x_offset:(nx÷2)+x_offset, (ny÷2)-y_offset:(ny÷2)+y_offset, t+1] .= T_inj
+		if t<10
+			T[(nx÷2)-x_offset:(nx÷2)+x_offset, 15:20, t+1] .= T_inj
+		end
 		avg = (T_res + T_inj) / 2
 	    
 		T[:, ny, t+1] .= avg # top boundary
@@ -257,9 +272,6 @@ begin
 	temperature_field=T
 	print()
 end
-
-# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
-@bind taa PlutoUI.Slider(1:nt, show_value=true)
 
 # ╔═╡ 0a72c6aa-0602-44b2-85a3-d68401aa7c31
 begin
@@ -281,4 +293,5 @@ end
 # ╟─3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 # ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
-# ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
+# ╟─0a72c6aa-0602-44b2-85a3-d68401aa7c31
+# ╠═6f2fa035-c06f-409c-a43e-238b782aac3f
