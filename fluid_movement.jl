@@ -109,12 +109,14 @@ md"""
 |---|---|
 |Nx|$(@bind nx PlutoUI.Slider(10:200, default=41, show_value=true))|
 |Ny|$(@bind ny PlutoUI.Slider(10:200, default=41, show_value=true))|
-|Nt|$(@bind nt PlutoUI.Slider(10:5000, default=500, show_value=true))|
+|dt|$(@bind dt PlutoUI.NumberField(0.001:1, default=0.02))|
+|Nt|$(@bind nt PlutoUI.NumberField(100:100:5000, default=1200))|
 |lx|$(@bind lx PlutoUI.Slider(1:10:1000, default=1.0, show_value=true))|
 |ly|$(@bind ly PlutoUI.Slider(1:10:200, default=1.0, show_value=true))|
 |$T_{res}$|$(@bind T_res_ PlutoUI.Slider(10:200, default=120, show_value=true))|
 |$T_{inj}$|$(@bind T_inj_ PlutoUI.Slider(10:200, default=90, show_value=true))|
-|Rayleigh|$(@bind Ra_ PlutoUI.NumberField(1:6, default=1e4))
+|Current|$(@bind current PlutoUI.Slider(-1:0.1:1, default=0.1, show_value=true))|
+|Use permeability Variogram|$(@bind use_vario CheckBox())|
 """
 
 # ╔═╡ 909d507c-972e-4ce3-a8c3-3965823b0e2b
@@ -143,25 +145,8 @@ begin
 	heatmap(ud[:, :, t_view])
 end
 
-# ╔═╡ 3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
-md"""
-## Permeability
-Rayleigh number can be linked to permeability with Raleigh-Darcy number ([source](https://web.mit.edu/1.63/www/Lec-notes/chap6_porous/6-6Lapwood.pdf)) : 
-
-$$Ra = \frac{\rho \beta \Delta T klg}{n\alpha}$$
-With : 
-- k the permeability of the porous medium ✓
-- ρ density of the fluid ✓
-- ΔT difference in temperature between T₀ and T₀+ΔT ≈ Tres-Tinj ✓
-- β expansion coefficient ✓
-- l characteristic length ≈ height of reservoir in meters ✓
-- ν kinematic viscosity ✓
-- α thermal diffusivity ✓
-
-"""
-
 # ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
-@bind taa PlutoUI.Slider(1:nt, show_value=true)
+@bind taa PlutoUI.Slider(2:nt, show_value=true)
 
 # ╔═╡ 64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
 global function CreateMask(radius::Real, center::Tuple, nx, ny)::BitMatrix
@@ -180,6 +165,23 @@ end
 md"""
 ## Permeability maps
 Create matrices containing both horizontal and vertical permeabilities. These are applied as multiplipliers to horizontal and vertical permeability values. 
+"""
+
+# ╔═╡ 3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
+md"""
+## Permeability
+Rayleigh number can be linked to permeability with Raleigh-Darcy number ([source](https://web.mit.edu/1.63/www/Lec-notes/chap6_porous/6-6Lapwood.pdf)) : 
+
+$$Ra = \frac{\rho \beta \Delta T klg}{n\alpha}$$
+With : 
+- k the permeability of the porous medium ✓
+- ρ density of the fluid ✓
+- ΔT difference in temperature between T₀ and T₀+ΔT ≈ Tres-Tinj ✓
+- β expansion coefficient ✓
+- l characteristic length ≈ height of reservoir in meters ✓
+- ν kinematic viscosity ✓
+- α thermal diffusivity ✓
+
 """
 
 # ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
@@ -203,7 +205,7 @@ md"""
 # ╔═╡ a709ce76-97f3-45aa-9bae-a32e3dedd8e8
 begin 
 	x = 1:nx
-	fperm(x, ny, λ=15, ▽=2) = sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2)
+	fperm(x, ny, λ=10, ▽=3) = (sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2))
 	lines(x, fperm.(x, ny))
 end
 
@@ -212,9 +214,12 @@ begin
 	permₕ = Array{Float64, 2}(undef, (nx, ny)); fill!(permₕ, 1.0)
 	permₕ = [fperm(y, ny) for y in 1:nx, y in 1:ny]
 	# dists = [cart_dist(center, (x, y)) < radius for x in 1:nx, y in 1:ny]
-	permₕ = permₕ .* Variogram(nx, ny, 20.)
-	permᵥ = permₕ ./10
-	heatmap(permᵥ)
+	if use_vario 
+		permₕ = permₕ .* Variogram(nx, ny, 20.)
+	end
+	permₕ = permₕ ./10
+	permᵥ = permₕ ./5
+	surface(permᵥ)
 end
 
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
@@ -223,8 +228,6 @@ begin
 	T_res = T_res_ + 273
 	dx = lx / (nx - 1)
 	dy = ly / (ny - 1)
-	current = 0.01
-	dt = 0.01 # Time step size
 	Pr = 7.01  # Prandtl number (for water)
 	Ra = 1e5 # Rayleigh number (controls convection strength)
 		
@@ -284,7 +287,7 @@ begin
 	        d2T_dy2 = (T[i, j+1, t] - 2 * T[i, j, t] + T[i, j-1, t]) / dy^2
 	
 	        # Momentum equations (x and y) with Boussinesq approximation
-duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kₕ+current*vc[i,j,t]
+duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)+current*vc[i,j,t]*kₕ
 dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kᵥ
 	        dT_dt = -(uc[i,j,t]*dT_dx+vc[i,j,t]*dT_dy)+α*(d2T_dx2+d2T_dy2)
 	
@@ -315,7 +318,7 @@ dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(
 		T[:, ny, t+1] .= avg # top boundary
 		T[1, :, t+1]  .= avg # side boundaries
 		T[nx, :, t+1] .= avg # side boundaries
-		T[:, 1, t+1]  .= avg # bottom boundary
+		T[:, 1, t+1]  .= T_res # bottom boundary
 	    #T[1, :, t+1] .= (T_res + T_inj) / 2 # side boundary
 	    #T[nx, :, t+1] .= (T_res + T_inj) / 2 # side boundary
 	end
@@ -325,11 +328,10 @@ end
 
 # ╔═╡ 0a72c6aa-0602-44b2-85a3-d68401aa7c31
 begin
-	# plotting 
-	c_range = (T_inj, T_res) # color range
-	
-	fig, ax, hm = heatmap(temperature_field[:, :, taa], colorrange=c_range)
-	Colorbar(fig[:, end+1], colorrange=c_range)
+	fig = Figure(size = (800, 600))
+	ax = Axis(fig[1,1], title = "Temperature Field at iteration $taa")
+	hm = contourf!(ax, temperature_field[:, :, taa])
+	Colorbar(fig[1,2], hm)
 	fig
 end
 
@@ -344,7 +346,7 @@ permₕ
 # ╟─9534870e-2b83-4590-8e3b-030f63816c43
 # ╠═214f2271-730f-4236-9761-a574295f12bf
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
-# ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
+# ╠═59b99db1-7852-40eb-b02a-8d3b6f79fcca
 # ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
 # ╟─64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
 # ╟─097b2ba3-c060-433d-bf10-a3d157a84c3d
