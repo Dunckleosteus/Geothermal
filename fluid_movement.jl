@@ -183,19 +183,38 @@ Create matrices containing both horizontal and vertical permeabilities. These ar
 """
 
 # ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
-global function Variogram(nx::Int, ny::Int, range=35.)
-	table = (; z=[1.,0.,1.]) # table containing values to fit
-	coord = [
-		(nx/4, ny/4), 
-		(nx/2, 0.75*ny), 
-		(0.75*nx, ny/2)
-	] # coordinate of table values
+global function Variogram(nx::Int, ny::Int, range=35, n_rand=10)
+	table = (; z=rand(Float64, n_rand)) # table containing values to fit
+	ra = [tuple(x[1]*nx, x[2]*ny) for x in zip(rand(Float64, n_rand), rand(Float64, n_rand))]
+	coord = ra# coordinate of table values
 	geotable = georef(table, coord) # georeferencing values
-	grid = CartesianGrid(100, 100)
-	model = Kriging(GaussianVariogram(range=35.))
+	grid = CartesianGrid(nx, ny)
+	model = Kriging(GaussianVariogram(range=range))
 	interp = geotable |> Interpolate(grid, model=model)
 	print(length(interp.z))
-	return reshape(interp.z, (100, 100)) ./10
+	return reshape(interp.z, (nx, ny))
+end
+
+# ╔═╡ f32aacf3-650a-4f54-8ca0-d26a91e921d3
+md"""
+### Vertical permeability profile
+"""
+
+# ╔═╡ a709ce76-97f3-45aa-9bae-a32e3dedd8e8
+begin 
+	x = 1:nx
+	fperm(x, ny, λ=15, ▽=2) = sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2)
+	lines(x, fperm.(x, ny))
+end
+
+# ╔═╡ cc561259-1ad6-46a6-a323-c0d12d859012
+begin
+	permₕ = Array{Float64, 2}(undef, (nx, ny)); fill!(permₕ, 1.0)
+	permₕ = [fperm(y, ny) for y in 1:nx, y in 1:ny]
+	# dists = [cart_dist(center, (x, y)) < radius for x in 1:nx, y in 1:ny]
+	permₕ = permₕ .* Variogram(nx, ny, 20.)
+	permᵥ = permₕ ./10
+	heatmap(permᵥ)
 end
 
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
@@ -204,8 +223,8 @@ begin
 	T_res = T_res_ + 273
 	dx = lx / (nx - 1)
 	dy = ly / (ny - 1)
-		
-	dt = 0.05 # Time step size
+	current = 0.01
+	dt = 0.01 # Time step size
 	Pr = 7.01  # Prandtl number (for water)
 	Ra = 1e5 # Rayleigh number (controls convection strength)
 		
@@ -238,8 +257,7 @@ begin
 	mask = CreateMask(radius, center, nx, ny)
 	T[:, :, 1] .= ifelse.(mask, T_inj, T[:, :, 1])
 	# Permeability 
-	permᵥ = Variogram(nx, ny)
-	permₕ = permᵥ ./ 2 
+	
 	for t in 1:(nt - 1) # time step 
 		for coords ∈ CartesianIndices((2:(nx - 1), 2:(ny - 1)))
 			i = coords[1]
@@ -266,8 +284,8 @@ begin
 	        d2T_dy2 = (T[i, j+1, t] - 2 * T[i, j, t] + T[i, j-1, t]) / dy^2
 	
 	        # Momentum equations (x and y) with Boussinesq approximation
-	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kᵥ
-	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kₕ
+duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kₕ+current*vc[i,j,t]
+dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kᵥ
 	        dT_dt = -(uc[i,j,t]*dT_dx+vc[i,j,t]*dT_dy)+α*(d2T_dx2+d2T_dy2)
 	
 	        # Update values
@@ -315,8 +333,8 @@ begin
 	fig
 end
 
-# ╔═╡ cc561259-1ad6-46a6-a323-c0d12d859012
-
+# ╔═╡ da7216cd-865f-47ee-8e7b-9086cbaf8fb5
+permₕ
 
 # ╔═╡ Cell order:
 # ╠═0a66c416-3484-11f0-0778-a1e104318d7b
@@ -325,11 +343,14 @@ end
 # ╟─909d507c-972e-4ce3-a8c3-3965823b0e2b
 # ╟─9534870e-2b83-4590-8e3b-030f63816c43
 # ╠═214f2271-730f-4236-9761-a574295f12bf
-# ╟─3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 # ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
 # ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
 # ╟─64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
 # ╟─097b2ba3-c060-433d-bf10-a3d157a84c3d
+# ╟─3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 # ╠═6300158b-af62-4863-9944-77fc4569df4f
 # ╠═cc561259-1ad6-46a6-a323-c0d12d859012
+# ╠═da7216cd-865f-47ee-8e7b-9086cbaf8fb5
+# ╟─f32aacf3-650a-4f54-8ca0-d26a91e921d3
+# ╠═a709ce76-97f3-45aa-9bae-a32e3dedd8e8
