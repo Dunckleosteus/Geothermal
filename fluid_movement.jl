@@ -160,6 +160,22 @@ With :
 
 """
 
+# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
+@bind taa PlutoUI.Slider(1:nt, show_value=true)
+
+# ╔═╡ 64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+global function CreateMask(radius::Real, center::Tuple, nx, ny)::BitMatrix
+	dists  = Array{Float64, 2}(undef, (nx, ny))
+	
+	cart_dist(a::Tuple{Real,Real},b::Tuple{Real,Real}) = sqrt(
+	    (a[1]-b[1])^2 + (a[2]-b[2])^2
+	)
+	 
+	dists = [cart_dist(center, (x,y)) for x in 1:nx, y in 1:ny] .< radius
+	
+	return dists
+end
+
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 begin
 	T_inj = T_inj_ + 273
@@ -194,8 +210,12 @@ begin
 	ΔT = abs(T_inj-T_res)
 	# Initial conditions
 	x_offset, y_offset = 10, 2
-	T[(nx÷2)-x_offset:(nx÷2)+x_offset, (ny÷2)-y_offset:(ny÷4)+y_offset, :] .= T_inj
-	
+	# creating bubble shape 
+	radius = 5
+	center = (nx÷2, (ny÷4)*3)
+	mask = CreateMask(radius, center, nx, ny)
+	T[:, :, 1] .= ifelse.(mask, T_inj, T[:, :, 1])
+
 	for t in 1:(nt - 1) # time step 
 		for coords ∈ CartesianIndices((2:(nx - 1), 2:(ny - 1)))
 			i = coords[1]
@@ -244,7 +264,8 @@ begin
 		vc[nx, :, t+1] .= 0.0
 		# Temperature boundary conditions
 		# T[15:20, 15:20, t+1] .= T_inj
-		T[(nx÷2)-x_offset:(nx÷2)+x_offset, (ny÷2)-y_offset:(ny÷2)+y_offset, t+1] .= T_inj
+		T[:, :, t+1] .= ifelse.(mask, T_inj, T[:, :, t+1])
+		
 		avg = (T_res + T_inj) / 2
 	    
 		T[:, ny, t+1] .= avg # top boundary
@@ -258,9 +279,6 @@ begin
 	print()
 end
 
-# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
-@bind taa PlutoUI.Slider(1:nt, show_value=true)
-
 # ╔═╡ 0a72c6aa-0602-44b2-85a3-d68401aa7c31
 begin
 	# plotting 
@@ -269,6 +287,12 @@ begin
 	fig, ax, hm = heatmap(temperature_field[:, :, taa], colorrange=c_range)
 	Colorbar(fig[:, end+1], colorrange=c_range)
 	fig
+end
+
+# ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
+begin 
+	# heatmap(CreateMask(5, (10, 10), nx, ny))
+	
 end
 
 # ╔═╡ Cell order:
@@ -282,3 +306,5 @@ end
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 # ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
 # ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
+# ╠═64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+# ╠═6300158b-af62-4863-9944-77fc4569df4f
