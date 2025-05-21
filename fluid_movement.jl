@@ -107,11 +107,11 @@ md"""
 ## Input parameters
 |Parameter|Value|
 |---|---|
-|Nx|$(@bind nx PlutoUI.Slider(10:200, default=31, show_value=true))|
-|Ny|$(@bind ny PlutoUI.Slider(10:200, default=31, show_value=true))|
+|Nx|$(@bind nx PlutoUI.Slider(10:200, default=41, show_value=true))|
+|Ny|$(@bind ny PlutoUI.Slider(10:200, default=41, show_value=true))|
 |Nt|$(@bind nt PlutoUI.Slider(10:5000, default=500, show_value=true))|
-|lx|$(@bind lx PlutoUI.Slider(10:10:1000, default=10.0, show_value=true))|
-|ly|$(@bind ly PlutoUI.Slider(10:10:200, default=10.0, show_value=true))|
+|lx|$(@bind lx PlutoUI.Slider(1:10:1000, default=1.0, show_value=true))|
+|ly|$(@bind ly PlutoUI.Slider(1:10:200, default=1.0, show_value=true))|
 |$T_{res}$|$(@bind T_res_ PlutoUI.Slider(10:200, default=120, show_value=true))|
 |$T_{inj}$|$(@bind T_inj_ PlutoUI.Slider(10:200, default=90, show_value=true))|
 |Rayleigh|$(@bind Ra_ PlutoUI.NumberField(1:6, default=1e4))
@@ -167,16 +167,16 @@ begin
 	dx = lx / (nx - 1)
 	dy = ly / (ny - 1)
 		
-	dt = 0.1 # Time step size
+	dt = 0.05 # Time step size
 	Pr = 7.01  # Prandtl number (for water)
-	Ra = 1e4 # Rayleigh number (controls convection strength)
+	Ra = 1e5 # Rayleigh number (controls convection strength)
 		
 	g = 9.81 # Acceleration due to gravity
 	β = 0.75e-3  # Thermal expansion coefficient (water @ 100°C)
 	# TODO: change to not use Ra
 	ν_water = 2.938e-7
 	ν = sqrt(g * β * abs(T_res - T_inj) * ny^3 / Ra) / sqrt(Ra * Pr)
-	α = ν_water / Pr 		# Thermal diffusivity ~ 0.02 
+	α = ν/ Pr 		# Thermal diffusivity ~ 0.02 
 	
 	ρ_water = 1000 	# kg.m³
 	# array of x velocities
