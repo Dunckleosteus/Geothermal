@@ -176,6 +176,28 @@ global function CreateMask(radius::Real, center::Tuple, nx, ny)::BitMatrix
 	return dists
 end
 
+# ╔═╡ 097b2ba3-c060-433d-bf10-a3d157a84c3d
+md"""
+## Permeability maps
+Create matrices containing both horizontal and vertical permeabilities. These are applied as multiplipliers to horizontal and vertical permeability values. 
+"""
+
+# ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
+global function Variogram(nx::Int, ny::Int, range=35.)
+	table = (; z=[1.,0.,1.]) # table containing values to fit
+	coord = [
+		(nx/4, ny/4), 
+		(nx/2, 0.75*ny), 
+		(0.75*nx, ny/2)
+	] # coordinate of table values
+	geotable = georef(table, coord) # georeferencing values
+	grid = CartesianGrid(100, 100)
+	model = Kriging(GaussianVariogram(range=35.))
+	interp = geotable |> Interpolate(grid, model=model)
+	print(length(interp.z))
+	return reshape(interp.z, (100, 100)) ./10
+end
+
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 begin
 	T_inj = T_inj_ + 273
@@ -215,11 +237,15 @@ begin
 	center = (nx÷2, (ny÷4)*3)
 	mask = CreateMask(radius, center, nx, ny)
 	T[:, :, 1] .= ifelse.(mask, T_inj, T[:, :, 1])
-
+	# Permeability 
+	permᵥ = Variogram(nx, ny)
+	permₕ = permᵥ ./ 2 
 	for t in 1:(nt - 1) # time step 
 		for coords ∈ CartesianIndices((2:(nx - 1), 2:(ny - 1)))
 			i = coords[1]
 			j = coords[2]
+			kₕ = permₕ[i, j]
+			kᵥ = permᵥ[i, j]
 			
 			# Ra_Da = DarcyRayleigh(ρ_water, β, ΔT, k, ly, ν, α)
 			# α = alpha(β, ΔT, Ra_Da, Pr, g)
@@ -240,8 +266,8 @@ begin
 	        d2T_dy2 = (T[i, j+1, t] - 2 * T[i, j, t] + T[i, j-1, t]) / dy^2
 	
 	        # Momentum equations (x and y) with Boussinesq approximation
-	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*0.01
-	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*0.02
+	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kᵥ
+	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kₕ
 	        dT_dt = -(uc[i,j,t]*dT_dx+vc[i,j,t]*dT_dy)+α*(d2T_dx2+d2T_dy2)
 	
 	        # Update values
@@ -289,11 +315,8 @@ begin
 	fig
 end
 
-# ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
-begin 
-	# heatmap(CreateMask(5, (10, 10), nx, ny))
-	
-end
+# ╔═╡ cc561259-1ad6-46a6-a323-c0d12d859012
+
 
 # ╔═╡ Cell order:
 # ╠═0a66c416-3484-11f0-0778-a1e104318d7b
@@ -306,5 +329,7 @@ end
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 # ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
 # ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
-# ╠═64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+# ╟─64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+# ╟─097b2ba3-c060-433d-bf10-a3d157a84c3d
 # ╠═6300158b-af62-4863-9944-77fc4569df4f
+# ╠═cc561259-1ad6-46a6-a323-c0d12d859012
