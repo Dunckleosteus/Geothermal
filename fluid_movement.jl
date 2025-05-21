@@ -205,7 +205,7 @@ md"""
 # ╔═╡ a709ce76-97f3-45aa-9bae-a32e3dedd8e8
 begin 
 	x = 1:nx
-	fperm(x, ny, λ=10, ▽=3) = (sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2))
+	fperm(x, ny, λ=10, ▽=3) = -(sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2))+0.5
 	lines(x, fperm.(x, ny))
 end
 
