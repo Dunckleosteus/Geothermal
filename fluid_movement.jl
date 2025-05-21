@@ -32,18 +32,18 @@ md"""
 ## 2D diffusion equation
 Diffusion in the context of heat transfer refers to the spreading of heat due to random molecular motions, which is essentially the same as conduction.
 
-The 2D diffusion equation can be expressed as [follows](https://scipython.com/book/chapter-7-matplotlib/examples/the-two-dimensional-diffusion-equation/) : 
+The 2D diffusion equation can be expressed as [follows](https://scipython.com/book/chapter-7-matplotlib/examples/the-two-dimensional-diffusion-equation/) :
 
 $$\frac{\nabla U}{\nabla t} = D(\frac{\nabla ^2 U}{\nabla x^2}+\frac{\nabla ^2U}{\nabla y^2})$$
 
-Where : 
+Where :
 
 |Parameter|Meaning|
 |---|---|
 |$D$|diffusion coefficient|
 |$U$|?|
 
-In code: 
+In code:
 ```python
 for i in range(1, nx-1):
     for j in range(1, ny-1):
@@ -59,7 +59,7 @@ md"""
 ## 2D convection equation
 Convection only occurs in fluids and can be expressed with [this](https://drzgan.github.io/Python_CFD/9.%202D%20nonlinear%20convection.html) equation :
 
-X momentum equation : 
+X momentum equation :
 
 $$\frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} + v \frac{\partial u}{\partial y} = -\frac{1}{\rho_0}\frac{\partial P}{\partial x}+ \nu (\frac{\partial^2u}{\partial x^2} + \frac{\partial^2u}{\partial y^2})$$
 
@@ -69,7 +69,7 @@ $$\frac{\partial v}{\partial t} + u \frac{\partial v}{\partial x} + v \frac{\par
 
 [Source](https://scientiairanica.sharif.edu/article_4022_4c02163d61a0e092d1b0b0519dd23f4e.pdf)
 
-Where : 
+Where :
 
 | | |
 |---|---|
@@ -89,11 +89,11 @@ And distances in meters.
 ## Advection diffusion for temperature
 
 $$\frac{\partial T}{\partial t}+u\frac{\partial T}{\partial x} + v\frac{\partial T}{\partial y} = \alpha (\frac{\partial^2T}{\partial x^2}+\frac{\partial^2 T}{\partial y^2})$$
-Where terms on the right is the thermal diffusion. 
+Where terms on the right is the thermal diffusion.
 
 [Source](https://www3.nd.edu/~powers/ame.60614/hwex.2004/hw4.pdf)
 ## Discretization
-Uses finite differences, with forward for time and central for spatial derivatives. 
+Uses finite differences, with forward for time and central for spatial derivatives.
 
 $$u_{i,j}^{n+1} = u_{i,j}^n + \Delta t \left[ - \left( u_{i,j}^n \frac{u_{i+1,j}^n - u_{i-1,j}^n}{2 \Delta x} + v_{i,j}^n \frac{u_{i,j+1}^n - u_{i,j-1}^n}{2 \Delta y} \right) + \nu \left( \frac{u_{i+1,j}^n - 2u_{i,j}^n + u_{i-1,j}^n}{(\Delta x)^2} + \frac{u_{i,j+1}^n - 2u_{i,j}^n + u_{i,j-1}^n}{(\Delta y)^2} \right) \right]$$
 
@@ -107,26 +107,28 @@ md"""
 ## Input parameters
 |Parameter|Value|
 |---|---|
-|Nx|$(@bind nx PlutoUI.Slider(10:200, default=25, show_value=true))|
-|Ny|$(@bind ny PlutoUI.Slider(10:200, default=25, show_value=true))|
-|Nt|$(@bind nt PlutoUI.NumberField(10:100:5000, default=500))|
-|lx|$(@bind lx PlutoUI.Slider(10:10:1000, default=10.0, show_value=true))|
-|ly|$(@bind ly PlutoUI.Slider(10:10:200, default=10.0, show_value=true))|
-|$T_{res}$|$(@bind T_res PlutoUI.Slider(10:200, default=120, show_value=true))|
-|$T_{inj}$|$(@bind T_inj PlutoUI.Slider(10:200, default=90, show_value=true))|
-|Rayleigh|$(@bind Ra_ PlutoUI.NumberField(1:6, default=1e4))
+|Nx|$(@bind nx PlutoUI.Slider(10:200, default=41, show_value=true))|
+|Ny|$(@bind ny PlutoUI.Slider(10:200, default=41, show_value=true))|
+|dt|$(@bind dt PlutoUI.NumberField(0.001:1, default=0.02))|
+|Nt|$(@bind nt PlutoUI.NumberField(100:100:5000, default=1200))|
+|lx|$(@bind lx PlutoUI.Slider(1:10:1000, default=1.0, show_value=true))|
+|ly|$(@bind ly PlutoUI.Slider(1:10:200, default=1.0, show_value=true))|
+|$T_{res}$|$(@bind T_res_ PlutoUI.Slider(10:200, default=120, show_value=true))|
+|$T_{inj}$|$(@bind T_inj_ PlutoUI.Slider(10:200, default=90, show_value=true))|
+|Current|$(@bind current PlutoUI.Slider(-1:0.1:1, default=0.1, show_value=true))|
+|Use permeability Variogram|$(@bind use_vario CheckBox())|
 """
 
 # ╔═╡ 909d507c-972e-4ce3-a8c3-3965823b0e2b
 begin
 	local nx::Int = 20
-	local ny::Int = 20 
-	
+	local ny::Int = 20
+
 	local dx::Float64 = 10.0
 	local dy::Float64 = 10.0
 	local dt::Float64 = 20.0
 	local D::Float64 = 0.01 # TODO
-	
+
 	ud = Array{Float64, 3}(undef, (nx, ny, nt))
 	fill!(ud, 0.0)
 	ud[5:10, 5:10, :] .= 10
@@ -143,6 +145,28 @@ begin
 	heatmap(ud[:, :, t_view])
 end
 
+# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
+@bind taa PlutoUI.Slider(2:nt, show_value=true)
+
+# ╔═╡ 64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+global function CreateMask(radius::Real, center::Tuple, nx, ny)::BitMatrix
+	dists  = Array{Float64, 2}(undef, (nx, ny))
+
+	cart_dist(a::Tuple{Real,Real},b::Tuple{Real,Real}) = sqrt(
+	    (a[1]-b[1])^2 + (a[2]-b[2])^2
+	)
+
+	dists = [cart_dist(center, (x,y)) for x in 1:nx, y in 1:ny] .< radius
+
+	return dists
+end
+
+# ╔═╡ 097b2ba3-c060-433d-bf10-a3d157a84c3d
+md"""
+## Permeability maps
+Create matrices containing both horizontal and vertical permeabilities. These are applied as multiplipliers to horizontal and vertical permeability values.
+"""
+
 # ╔═╡ 3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 md"""
 ## Permeability
@@ -150,45 +174,57 @@ Variations in permeability are modelled by simply applying a modifier to the x a
 
 """
 
-# ╔═╡ 59b99db1-7852-40eb-b02a-8d3b6f79fcca
-@bind taa PlutoUI.Slider(1:nt, show_value=true)
+# ╔═╡ 6300158b-af62-4863-9944-77fc4569df4f
+global function Variogram(nx::Int, ny::Int, range=35, n_rand=10)
+	table = (; z=rand(Float64, n_rand)) # table containing values to fit
+	ra = [tuple(x[1]*nx, x[2]*ny) for x in zip(rand(Float64, n_rand), rand(Float64, n_rand))]
+	coord = ra# coordinate of table values
+	geotable = georef(table, coord) # georeferencing values
+	grid = CartesianGrid(nx, ny)
+	model = Kriging(GaussianVariogram(range=range))
+	interp = geotable |> Interpolate(grid, model=model)
+	print(length(interp.z))
+	return reshape(interp.z, (nx, ny))
+end
 
-# ╔═╡ 6f2fa035-c06f-409c-a43e-238b782aac3f
+# ╔═╡ f32aacf3-650a-4f54-8ca0-d26a91e921d3
+md"""
+### Vertical permeability profile
+"""
+
+# ╔═╡ a709ce76-97f3-45aa-9bae-a32e3dedd8e8
 begin
-	global function Variogram(nx::Int, ny::Int, range=35.)
-		table = (; z=[1.,0.,1.]) # table containing values to fit
-		coord = [
-			(nx/4, ny/4), 
-			(nx/2, 0.75*ny), 
-			(0.75*nx, ny/2)
-		] # coordinate of table values
-		geotable = georef(table, coord) # georeferencing values
-		grid = CartesianGrid(100, 100)
-		model = Kriging(GaussianVariogram(range=35.))
-		interp = geotable |> Interpolate(grid, model=model)
-		print(length(interp.z))
-		return reshape(interp.z, (100, 100))
-	end
+	x = 1:nx
+	fperm(x, ny, λ=10, ▽=3) = -(sin.(x ./ (ny/λ)) .* 0.1  .+ x / (ny*2))+0.5
+	lines(x, fperm.(x, ny))
+end
 
-	heatmap(Variogram(100, 100))
+# ╔═╡ cc561259-1ad6-46a6-a323-c0d12d859012
+begin
+	permₕ = Array{Float64, 2}(undef, (nx, ny)); fill!(permₕ, 1.0)
+	permₕ = [fperm(y, ny) for y in 1:nx, y in 1:ny]
+	# dists = [cart_dist(center, (x, y)) < radius for x in 1:nx, y in 1:ny]
+	if use_vario
+		permₕ = permₕ .* Variogram(nx, ny, 20.)
+	end
+	permₕ = permₕ ./10
+	permᵥ = permₕ ./5
+	surface(permᵥ)
 end
 
 # ╔═╡ c30bde2d-e0df-4fb3-b5b1-11455a8364f2
 begin
 	dx = lx / (nx - 1)
 	dy = ly / (ny - 1)
-		
-	dt = 0.0001 # Time step size
-	Pr = 7.01  # Prandtl number (for water) # 7.01
+	Pr = 7.01  # Prandtl number (for water)
 	Ra = 1e5 # Rayleigh number (controls convection strength)
-		
+
 	g = 9.81 # Acceleration due to gravity
 	β = 1 # Thermal expansion coefficient (water @ 100°C)
 	ν_water = 2.938e-7 # Water dynamic viscosity
 	ν = sqrt(g * β * abs(T_res - T_inj) * ny^3 / Ra) / sqrt(Ra * Pr)
-	# ν = ν_water
-	α = ν_water / Pr 		# Thermal diffusivity ~ 0.02 
-	
+	α = ν/ Pr 		# Thermal diffusivity ~ 0.02
+
 	ρ_water = 1000 	# kg.m³
 	# array of x velocities
 	uc = Array{Float64, 3}(undef, nx, ny, nt)
@@ -204,16 +240,21 @@ begin
 	fill!(p, 0.0)
 	ΔT = abs(T_inj-T_res)
 	# Initial conditions
-	x_offset, y_offset = 2, 1
-	T[(nx÷2)-x_offset:(nx÷2)+x_offset, ny:(ny-(2*y_offset)), :] .= T_inj
+	x_offset, y_offset = 10, 2
+	# creating bubble shape
+	radius = 5
+	center = (nx÷2, (ny÷4)*3)
+	mask = CreateMask(radius, center, nx, ny)
+	T[:, :, 1] .= ifelse.(mask, T_inj, T[:, :, 1])
+	# Permeability
 
-	# permeability values 
-	perm = Variogram(nx, ny)
-	for t in 1:(nt - 1) # time step 
+	for t in 1:(nt - 1) # time step
 		for coords ∈ CartesianIndices((2:(nx - 1), 2:(ny - 1)))
 			i = coords[1]
 			j = coords[2]
-			kᵢⱼ = perm[i, j]
+			kₕ = permₕ[i, j]
+			kᵥ = permᵥ[i, j]
+
 			# Ra_Da = DarcyRayleigh(ρ_water, β, ΔT, k, ly, ν, α)
 			# α = alpha(β, ΔT, Ra_Da, Pr, g)
 	    	# Spatial derivatives (central differences)
@@ -224,26 +265,26 @@ begin
 
 	        dT_dx = (T[i+1, j, t] - T[i-1, j, t]) / (2 * dx) # ΔT/Δy
 	        dT_dy = (T[i, j+1, t] - T[i, j-1, t]) / (2 * dy) # ΔT/Δy
-	
+
 	    	d2uc_dx2 = (uc[i+1, j, t] - 2 * uc[i, j, t] + uc[i-1, j, t]) / dx^2
 	        d2uc_dy2 = (uc[i, j+1, t] - 2 * uc[i, j, t] + uc[i, j-1, t]) / dy^2
 	        d2vc_dx2 = (vc[i+1, j, t] - 2 * vc[i, j, t] + vc[i-1, j, t]) / dx^2
 	        d2vc_dy2 = (vc[i, j+1, t] - 2 * vc[i, j, t] + vc[i, j-1, t]) / dy^2
 	        d2T_dx2 = (T[i+1, j, t] - 2 * T[i, j, t] + T[i-1, j, t]) / dx^2
 	        d2T_dy2 = (T[i, j+1, t] - 2 * T[i, j, t] + T[i, j-1, t]) / dy^2
-	
+
 	        # Momentum equations (x and y) with Boussinesq approximation
-	        duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)*kᵢⱼ
-	        dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kᵢⱼ
+duc_dt = -(uc[i,j,t]*duc_dx+vc[i,j,t]*duc_dy)+ν*(d2uc_dx2+d2uc_dy2)+current*vc[i,j,t]*kₕ
+dvc_dt = -(uc[i,j,t]*dvc_dx+vc[i, j, t]*dvc_dy)+ν*(d2vc_dx2 + d2vc_dy2) +g*β*(T[i,j,t]-(T_inj+T_res)/2)*kᵥ
 	        dT_dt = -(uc[i,j,t]*dT_dx+vc[i,j,t]*dT_dy)+α*(d2T_dx2+d2T_dy2)
-	
+
 	        # Update values
 	        uc[i, j, t+1] = uc[i, j, t] + dt * duc_dt
 	        vc[i, j, t+1] = vc[i, j, t] + dt * dvc_dt
 	        T[i, j, t+1]  = T[i, j, t] + dt * dT_dt
 	    	# end
 	    end
-	
+
 	    # Boundary conditions (simplified no-slip and fixed temperature)
 		# UC boundaries (no velocity on edges)
 	    uc[:, 1, t+1].= 0.0
@@ -257,15 +298,14 @@ begin
 		vc[nx, :, t+1] .= 0.0
 		# Temperature boundary conditions
 		# T[15:20, 15:20, t+1] .= T_inj
-		if t<10
-			T[(nx÷2)-x_offset:(nx÷2)+x_offset, 15:20, t+1] .= T_inj
-		end
+		T[:, :, t+1] .= ifelse.(mask, T_inj, T[:, :, t+1])
+
 		avg = (T_res + T_inj) / 2
-	    
+
 		T[:, ny, t+1] .= avg # top boundary
 		T[1, :, t+1]  .= avg # side boundaries
 		T[nx, :, t+1] .= avg # side boundaries
-		T[:, 1, t+1]  .= avg # bottom boundary
+		T[:, 1, t+1]  .= T_res # bottom boundary
 	    #T[1, :, t+1] .= (T_res + T_inj) / 2 # side boundary
 	    #T[nx, :, t+1] .= (T_res + T_inj) / 2 # side boundary
 	end
@@ -275,13 +315,15 @@ end
 
 # ╔═╡ 0a72c6aa-0602-44b2-85a3-d68401aa7c31
 begin
-	# plotting 
-	c_range = (T_inj, T_res) # color range
-	
-	fig, ax, hm = heatmap(temperature_field[:, :, taa], colorrange=c_range)
-	Colorbar(fig[:, end+1], colorrange=c_range)
+	fig = Figure(size = (800, 600))
+	ax = Axis(fig[1,1], title = "Temperature Field at iteration $taa")
+	hm = contourf!(ax, temperature_field[:, :, taa])
+	Colorbar(fig[1,2], hm)
 	fig
 end
+
+# ╔═╡ da7216cd-865f-47ee-8e7b-9086cbaf8fb5
+permₕ
 
 # ╔═╡ Cell order:
 # ╠═0a66c416-3484-11f0-0778-a1e104318d7b
@@ -290,8 +332,14 @@ end
 # ╟─909d507c-972e-4ce3-a8c3-3965823b0e2b
 # ╟─9534870e-2b83-4590-8e3b-030f63816c43
 # ╠═214f2271-730f-4236-9761-a574295f12bf
-# ╟─3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
 # ╠═c30bde2d-e0df-4fb3-b5b1-11455a8364f2
-# ╟─59b99db1-7852-40eb-b02a-8d3b6f79fcca
-# ╟─0a72c6aa-0602-44b2-85a3-d68401aa7c31
-# ╠═6f2fa035-c06f-409c-a43e-238b782aac3f
+# ╠═59b99db1-7852-40eb-b02a-8d3b6f79fcca
+# ╠═0a72c6aa-0602-44b2-85a3-d68401aa7c31
+# ╟─64dbeb7c-dfe3-4ea5-95da-6d7d336df9b2
+# ╟─097b2ba3-c060-433d-bf10-a3d157a84c3d
+# ╟─3be91d09-7b8b-4fd7-8719-6c6ce9e16a8f
+# ╠═6300158b-af62-4863-9944-77fc4569df4f
+# ╠═cc561259-1ad6-46a6-a323-c0d12d859012
+# ╠═da7216cd-865f-47ee-8e7b-9086cbaf8fb5
+# ╟─f32aacf3-650a-4f54-8ca0-d26a91e921d3
+# ╠═a709ce76-97f3-45aa-9bae-a32e3dedd8e8
